@@ -561,6 +561,36 @@ function openCompare(){if(!CMP.A.src)CMP.A.src=S?(([...mine][0])||'custom'):'cus
    if(q('clear'))q('clear').onclick=e=>{e.preventDefault();c.ids=[];draw()};el.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{c.ids.splice(+b.dataset.rm,1);draw()})});
   $('#mbox').querySelectorAll('.rsv [data-pi]').forEach(e=>e.onclick=()=>openPlayer(+e.dataset.pi))};
  draw();$('#modal').classList.add('on')}
+// Backyard Baseball 2001 hitting model (competitive mode), decoded from the online patch scripts (room-4 2084/2085/2087/2090)
+const HIT=(()=>{
+ // r = exit-speed spread: floor((a+b+coin)/2), a,b uniform 1..100, coin 0/1
+ const R=new Array(102).fill(0);for(let a=1;a<=100;a++)for(let b=1;b<=100;b++)for(let c=0;c<2;c++)R[Math.floor((a+b+c)/2)]+=1/20000;
+ const pGE=(base,need,div)=>{let s=0;for(let r=1;r<=100;r++)if(R[r]&&base+(div?Math.floor(r/div):r)>=need)s+=R[r];return s};
+ const base=(sw,P)=>sw==='power'?120+Math.floor(P*17/20):110+Math.floor(P*4/5);
+ // hit-quality distribution for a grid score s
+ function hq(sw,P,C,s){const a=Math.min(1,P/100),b=Math.min(1,(sw==='power'?P:C)/125),out=[0,0,0,0,0];// index 0 = foul/miss, 1..4 HQ
+  for(const [x,px] of [[1,a],[0,1-a]])for(const [y,py] of [[1,b],[0,1-b]]){let q=s+x+y-(sw==='power'?1:0);q=Math.min(4,q);out[q<=0?0:q]+=px*py}return out}
+ // speed above HR mark (250) by hit quality
+ function hrBy(sw,P){const B=base(sw,P),HR=250;const q2=(pGE(B,HR,3)+pGE(B,HR,4)+pGE(B,HR,5))/3;return[0,0,q2,pGE(B,HR,2),pGE(B,HR,0)]}
+ function avgSpeed(sw,P){const B=base(sw,P);let m=0;for(let r=1;r<=100;r++)m+=R[r]*r;return{hq1:B-m,hq2:B+m/4,hq3:B+m/2,hq4:B+m,base:B}}
+ function card(P,C){const res={};for(const sw of ['power','normal']){const hr=hrBy(sw,P),rows={};for(const s of [3,2,1,0]){const d=hq(sw,P,C,s);rows[s]={d,hr:d.reduce((t,v,i)=>t+v*hr[i],0),xbh:d[3]+d[4]}}res[sw]={rows,speed:avgSpeed(sw,P),hr}}
+  const score=sw=>res[sw].rows[3].hr*.35+res[sw].rows[2].hr*.65+(res[sw].rows[2].d[3]+res[sw].rows[2].d[4])*.15;
+  res.best=score('power')>score('normal')?'power':'normal';res.foul=Math.max(0,Math.min(1,(105-C)/210));return res}
+ const GRID={sq:[[-2,-2,-1,0,-1,-2,-2],[-2,-1,1,1,1,-1,-2],[-1,0,1,2,1,0,-1],[-1,1,2,3,2,1,-1],[-1,0,1,2,1,0,-1],[-2,-1,1,1,1,-1,-2],[-2,-2,-1,0,-1,-2,-2]]};
+ const fromList=(m)=>{const g=[];for(let r=0;r<7;r++){g.push([]);for(let c=0;c<7;c++){const n=r*7+c+1;let v=-4;for(const k in m)if(m[k].includes(n))v=+k;g[r].push(v)}}return g};
+ GRID.left=fromList({3:[24],2:[17,23,25,31],1:[9,10,16,18,22,26,30,32,37,38],0:[3,11,15,19,29,33,39,45],'-1':[2,4,8,12,20,27,34,36,40,44,46],'-2':[1,5,6,7,13,14,21,28,35,41,42,43,47,48,49]});
+ GRID.right=fromList({3:[26],2:[19,25,27,33],1:[12,13,18,20,24,28,32,34,40,41],0:[5,11,17,21,31,35,39,47],'-1':[4,6,10,14,16,23,30,38,42,46,48],'-2':[1,2,3,7,8,9,15,22,29,36,37,43,44,45,49]});
+ const SPRAY={1:[-13,-2,10,48,63],2:[-30,-7,10,27,45],3:[-47,-32,0,15,28]};
+ return{hq,card,base,avgSpeed,GRID,SPRAY,R}})();
+
+
+function hitBlock(p){const c=HIT.card(p.pow,p.con),pc=x=>x<0.005?'—':Math.round(x*100)+'%';const pw=c.power,nm=c.normal;
+ const pw3=pw.rows[3].hr,pw2=pw.rows[2].hr,n3=nm.rows[3].hr,n2=nm.rows[2].hr,den=(pw3-n3)+(n2-pw2);let be=pw3>n3&&den>0?(n2-pw2)/den:null;
+ const verdict=be==null||be>=1?'Use the normal swings: the power swing never out-homers them for this kid.':be<=0?'Power swing whenever you can.':`Power swing pays off if about ${Math.round(be*100)}%+ of your contact is dead center; otherwise the normal swings hit more home runs.`;
+ const row=(l,a,b)=>`<tr><td style="text-align:left;color:var(--mute)">${l}</td><td>${a}</td><td>${b}</td></tr>`;
+ return `<h3>HITTING (COMPETITIVE MODE)</h3><div style="overflow-x:auto"><table class="s" style="font-variant-numeric:tabular-nums;max-width:560px"><thead><tr><th style="text-align:left"></th><th>Power swing</th><th>Normal swing</th></tr></thead><tbody>
+ ${row('HQ4 chance, dead center (+3)',pc(pw.rows[3].d[4]),pc(nm.rows[3].d[4]))}${row('HQ4 chance, next ring (+2)',pc(pw.rows[2].d[4]),pc(nm.rows[2].d[4]))}${row('Home run chance, dead center',pc(pw3),pc(n3))}${row('Home run chance, next ring',pc(pw2),pc(n2))}${row('Average HQ4 exit speed (250 = HR)',Math.round(pw.speed.hq4),Math.round(nm.speed.hq4))}${row('Foul / miss risk on a +1 cell',pc(pw.rows[1].d[0]),pc(nm.rows[1].d[0]))}
+ </tbody></table></div><div style="color:var(--mute);font-size:12.5px;margin-top:4px">${verdict} Foul-ball tendency from Contact: about ${pc(c.foul)}.</div>`}
 async function openTeamCard(slot){if(!S)return;const ms=[...mine].sort();slot=slot||(ms.includes(S.view)?S.view:ms[0]);const T=S.teams[slot];
  if(!T.roster.length){$('#mbox').innerHTML='<button class="x" aria-label="Close">×</button><h2 class="cond">TEAM CARD</h2><p style="color:var(--mute)">Draft somebody first.</p>';$('#modal').classList.add('on');$('#mbox').querySelector('.x').onclick=()=>$('#modal').classList.remove('on');return}
  $('#mbox').innerHTML='<p style="color:var(--mute)">Pinning up your team…</p>';$('#modal').classList.add('on');
@@ -633,7 +663,7 @@ function openPlayer(i){const p=P[i],T=S.teams[S.view],lock=webberLock(i),locked=
   <div class="pnote">${p.wh?'Workhorse. Can throw a full game.':p.pc?'Usable arm for a committee.':p.rp?'Reliever. Works as a third arm, not as a starter.':'Not a pitcher.'}${p.bf?` Has faced ${p.bf} batters since S5.`:''}</div>
  </div></div>
  <div style="color:var(--mute);font-size:12.5px">Fits: ${[p.c90?'catcher (arm 90+)':p.c87?'low-end catcher (87 to 89 arm)':'',p.ss?'shortstop'+(p.ht===3?' (pro frame)':''):'',p.b1?'first base (height 3+)':'',p.of?'outfield (speed 6+)':'',p.wh?'workhorse pitcher':p.pc?'committee pitcher':p.rp?'reliever (third arm only)':'',p.weak?'WEAK ARM (50 or less)':'',p.pow>=90?'power bat anywhere':p.pow>=86?'power bat at short parks':''].filter(Boolean).join(' · ')||'utility infield'}</div>
- <h3>SEASON LOG</h3>${p.tw.length?`<div class="clonebar"><button class="on" data-w="self">${p.n}</button>${p.tw.map(t=>`<button data-w="${t}">${t}</button>`).join('')}<button data-w="all">All combined</button></div>`:''}<div id="slog">${seasonLog(p)}</div>
+ ${hitBlock(p)}<h3>SEASON LOG</h3>${p.tw.length?`<div class="clonebar"><button class="on" data-w="self">${p.n}</button>${p.tw.map(t=>`<button data-w="${t}">${t}</button>`).join('')}<button data-w="all">All combined</button></div>`:''}<div id="slog">${seasonLog(p)}</div>
  <div style="margin-top:16px;display:flex;gap:10px"><button id="mDraft" class="go cond" ${can?'':'disabled'}>${S.taken[i]?'ALREADY DRAFTED':locked?'PROTECTED UNTIL '+who(lock).toUpperCase()+' PICKS AGAIN':can?'DRAFT '+p.n.toUpperCase()+(fz?' FOR '+who(SEQ[S.k]).toUpperCase():''):'NOT YOUR PICK'}</button>${own&&!isMine(own.slot)?`<button id="mForce" title="Rolls the draft back to this pick so you can choose a different player for ${who(own.slot)}. Every pick after it is cleared and re-run.">CHANGE THIS PICK</button>`:''}<button id="mClose">Close</button></div>`;if(own&&!isMine(own.slot)){const fb=$('#mForce');fb.onclick=()=>forcePick(own.k)}
  const wireExp=()=>$('#mbox').querySelectorAll('.exp').forEach(b=>b.onclick=()=>{const open=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',String(!open));b.textContent=open?'▸':'▾';$('#mbox').querySelectorAll('.x-'+b.dataset.x).forEach(r=>r.style.display=open?'none':'table-row')});wireExp();$('#mbox').querySelectorAll('.cl').forEach(x=>x.onclick=e=>{e.preventDefault();openPlayer(IDX[x.dataset.n])});$('#mbox').querySelectorAll('.clonebar button').forEach(bn=>bn.onclick=()=>{$('#mbox').querySelectorAll('.clonebar button').forEach(y=>y.classList.remove('on'));bn.classList.add('on');const w=bn.dataset.w,src=w==='self'?p.log:w==='all'?[p,...p.tw.map(t=>P[IDX[t]])].flatMap(q=>q.log.map(r=>Object.assign({},r,{pn:q.n}))):P[IDX[w]].log;$('#slog').innerHTML=seasonLog(p,src);wireExp()});$('#modal').classList.add('on');const close=()=>$('#modal').classList.remove('on');$('#mbox .x').onclick=close;$('#mClose').onclick=close;$('#mDraft').onclick=()=>{close();userPick(i)}}
 $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').classList.remove('on')};document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#modal').classList.remove('on')});
