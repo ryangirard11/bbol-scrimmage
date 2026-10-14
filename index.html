@@ -163,6 +163,15 @@ body.scrim #scrim{display:block}
 body.scrimslot #scrimBack{display:block}
 .sc-imgs{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:720px){.sc-imgs{grid-template-columns:1fr}}
 .sc-imgs img{width:100%;border-radius:6px}
+
+.sb{border-collapse:collapse;font-size:10.5px;min-width:1100px;width:100%}
+.sb th,.sb td{border:1px solid var(--line);padding:2px;text-align:center;vertical-align:top;width:4%}
+.sb th{font-size:12px;font-weight:700}.sb th span{display:block;font-weight:400;color:var(--mute);font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70px;margin:0 auto}
+.sb td img,.sb td .nof{width:26px;height:26px;display:block;margin:0 auto}
+.sb td b{display:block;font-weight:600;line-height:1.1}.sb td i{color:var(--mute);font-style:normal}
+.sb td.rn{width:20px;color:var(--mute);vertical-align:middle}
+.sb .m1{background:rgba(76,155,240,.16)}.sb .m0{background:rgba(245,166,35,.13)}.sb td.now{outline:2px solid var(--g);outline-offset:-2px}
+.nbl img,.nbl .nof{width:40px;height:40px;flex:none}
 </style></head><body class="scrim"><div id="scrim"></div><div id="scrimBack"><button id="scrimBackBtn" class="go cond">← SCRIMMAGE</button> <button id="scrimP2" class="cond" style="display:none" title="If player 2 is away, let the bot make their pick">PICK FOR PLAYER 2</button></div>
 <div id="setup"><h1>BBOL SEASON 8 MOCK DRAFT</h1>
 <div id="livePanel" style="border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:10px 12px;margin:8px 0 14px">
@@ -869,6 +878,10 @@ X.onMake=()=>{if(NET.nr&&NET.seat===0)pushSlot()};
 function slotHostCheck(H,G){if(!(typeof S!=="undefined"&&S)||!G||!G.req)return;const b=H.slots[1];if(G.req.ep!==H.ep||G.req.k!==S.k||SEQ[S.k]!==b||S.taken[G.req.i])return;window.SC_REMOTE_OK=1;try{userPick(G.req.i)}finally{window.SC_REMOTE_OK=0}}
 X.slotWaiting=()=>{if(NET.nr&&NET.seat===0){const H=st(0),G=st(1);if(H&&H.mode==='slot')slotHostCheck(H,G)}};
 X.slotDone=(A,B)=>{if(NET.nr&&NET.seat===0)pushSlot()};
+
+function boardHtml(picks,lab,mySlot,hostSlot,k){let h='<div style="overflow-x:auto;margin:0 0 12px;border:1px solid var(--line);border-radius:8px"><table class="sb"><thead><tr><th></th>'+SL.map(s=>`<th class="${s===mySlot?'m1':s===hostSlot?'m0':''}">${s}<span>${esc((s===mySlot?'You':lab[s]||'').slice(0,11))}</span></th>`).join('')+'</tr></thead><tbody>';
+ for(let r=0;r<9;r++){h+=`<tr><td class="rn">${r+1}</td>`;SL.forEach(s=>{const kk=r*24+D.order[r+1].indexOf(s),i=picks[kk];const cls=(s===mySlot?'m1':s===hostSlot?'m0':'')+(kk===k?' now':'');h+=`<td class="${cls}">${i!=null?`${face(P[i],'')}<b>${boardName(P[i].n)}</b>`:`<i>${kk+1}</i>`}</td>`});h+='</tr>'}
+ return h+'</tbody></table></div>'}
 function slotView(H,G){const a=H.slots[0],b=H.slots[1];
  if(NET.seat===0){if((typeof S!=="undefined"&&S)&&document.body.classList.contains('scrimslot'))return;const picks=dec(H.sp);if(picks.length>=216)return slotResults(H,G,picks);return}
  const picks=dec(H.sp),k=picks.length;if(k>=216)return slotResults(H,G,picks);
@@ -877,13 +890,13 @@ function slotView(H,G){const a=H.slots[0],b=H.slots[1];
  const F={all:p=>1,c:p=>p.c90||p.c87,ss:p=>p.ss,b1:p=>p.b1,of:p=>p.of,p:p=>p.pc,pw:p=>p.pow>=86,sp:p=>p.t>=7};
  const av=BYADP.filter(i=>!taken.has(i)&&F[flt](P[i])&&(!q||P[i].n.toLowerCase().includes(q))).slice(0,60);
  const recent=picks.map((i,j)=>[j,i]).slice(-10).reverse();
- frame(`<div class="sc-turn p${my?1:0}"><div><span style="color:var(--mute);font-size:12px;letter-spacing:1px">ROUND ${Math.floor(k/24)+1} · PICK ${k+1} OF 216</span><br><b class="${my?'c1':''}">${my?'YOUR PICK':'On the clock: '+esc(lab[onClock]||onClock)}</b></div><div style="color:var(--mute);font-size:13px">You're slot ${b} · ${esc(H.fld?H.fld[1]:'')}</div></div>
+ frame(`<div class="sc-turn p${my?1:0}"><div><span style="color:var(--mute);font-size:12px;letter-spacing:1px">ROUND ${Math.floor(k/24)+1} · PICK ${k+1} OF 216</span><br><b class="${my?'c1':''}">${my?'YOUR PICK':'On the clock: '+esc(lab[onClock]||onClock)}</b></div><div style="color:var(--mute);font-size:13px">You're slot ${b} · ${esc(H.fld?H.fld[1]:'')} <button id="nbBoardT" style="margin-left:8px">${NET.hideBoard?'Show board':'Hide board'}</button></div></div>${NET.hideBoard?'':boardHtml(picks,lab,b,a,k)}
  <div class="sc-teams"><div class="sc-team" style="min-width:0"><div class="row" style="margin-bottom:8px"><input id="nbQ" placeholder="Search…" value="${esc(NET.q||'')}" style="flex:1"><select id="nbF">${[['all','All'],['c','C'],['ss','SS'],['b1','1B'],['of','OF'],['p','P'],['pw','Power'],['sp','Speed']].map(([v,l])=>`<option value="${v}" ${v===flt?'selected':''}>${l}</option>`).join('')}</select></div>
- <div style="max-height:560px;overflow:auto">${av.map(i=>{const p=P[i];return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">${face(p,'')}<div style="flex:1;min-width:0"><div style="font-weight:700">${p.n}${tags(p)}</div><div style="color:var(--mute);font-size:12px">ADP ${p.adp.toFixed(0)} · POW ${p.pow} · CON ${p.con} · SPD ${p.t} · ARM ${p.arm} · GLV ${p.crd}</div></div><button data-i="${i}" ${my?'':'disabled'} class="cond">DRAFT</button></div>`}).join('')}</div></div>
+ <div class="nbl" style="max-height:560px;overflow:auto">${av.map(i=>{const p=P[i];return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">${face(p,'')}<div style="flex:1;min-width:0"><div style="font-weight:700">${p.n}${tags(p)}</div><div style="color:var(--mute);font-size:12px">ADP ${p.adp.toFixed(0)} · POW ${p.pow} · CON ${p.con} · SPD ${p.t} · ARM ${p.arm} · GLV ${p.crd}</div></div><button data-i="${i}" ${my?'':'disabled'} class="cond">DRAFT</button></div>`}).join('')}</div></div>
  <div style="display:flex;flex-direction:column;gap:12px;min-width:0"><div class="sc-team"><b class="c1">Your team</b> <span style="color:var(--mute)">${mineT.roster.length}/9</span><ol>${mineT.roster.map(i=>`<li>${P[i].n}${tags(P[i])}</li>`).join('')}</ol><div class="needs">${mineT.roster.length?needWords(mineT):''}</div></div>
  <div class="sc-team"><b class="c0">${esc(H.name)}</b> <span style="color:var(--mute)">${hostT.roster.length}/9</span><ol>${hostT.roster.map(i=>`<li>${P[i].n}${tags(P[i])}</li>`).join('')}</ol></div>
  <div class="sc-team"><b>Recent picks</b><ol style="list-style:none;padding:0">${recent.map(([j,i])=>`<li><span style="color:var(--mute)">#${j+1} ${esc(lab[SEQ[j]]||SEQ[j])}:</span> ${P[i].n}</li>`).join('')}</ol></div></div></div>`);
- const qi=document.getElementById('nbQ');qi.oninput=()=>{NET.q=qi.value;NET.last='';draw();const n=document.getElementById('nbQ');n.focus();n.setSelectionRange(n.value.length,n.value.length)};document.getElementById('nbF').onchange=e=>{NET.flt=e.target.value;NET.last='';draw()};
+ const bt=document.getElementById('nbBoardT');if(bt)bt.onclick=()=>{NET.hideBoard=!NET.hideBoard;NET.last='';draw()};const sbw=document.querySelector('#scrim .sb td.now');if(sbw&&sbw.scrollIntoView&&!NET.scrolled){}const qi=document.getElementById('nbQ');qi.oninput=()=>{NET.q=qi.value;NET.last='';draw();const n=document.getElementById('nbQ');n.focus();n.setSelectionRange(n.value.length,n.value.length)};document.getElementById('nbF').onchange=e=>{NET.flt=e.target.value;NET.last='';draw()};
  document.querySelectorAll('#scrim button[data-i]').forEach(x=>x.onclick=()=>{if(!my)return;x.disabled=true;x.textContent='SENT';me({req:{ep:H.ep,k,i:+x.dataset.i}})})}
 function slotResults(H,G,picks){const a=H.slots[0],b=H.slots[1],r=s=>picks.filter((i,j)=>SEQ[j]===s);
  const A=teamOf(r(a),H.name,0,H.fld?H.fld[0]:H.park),B=teamOf(r(b),G?G.name:'Player 2',1,H.fld?H.fld[1]:H.park);
